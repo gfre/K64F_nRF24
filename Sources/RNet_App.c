@@ -19,9 +19,19 @@
 #include "KEY1.h"
 #include <stdio.h>
 #include "USB1.h"
+#include "Shell.h"
+#include "PE_Error.h"
 
-static uint8_t cdc_buffer[USB1_DATA_BUFF_SIZE];
-static uint8_t in_buffer[USB1_DATA_BUFF_SIZE];
+#include <STDDEF.h>
+
+#define PAYLOAD_SIZE 		(24)
+#define MSG_SIZE		(32)
+
+static uint8 cdc_buffer[USB1_DATA_BUFF_SIZE];
+static uint8 in_buffer[USB1_DATA_BUFF_SIZE];
+static uint8 msgCtr = 0u;
+static uint8 timeouts = 0u;
+static uint8 configFlag = 0u;
 
 typedef enum {
   RNETA_INITIAL, /* initialization state */
@@ -29,9 +39,93 @@ typedef enum {
   RNETA_TX_RX /* ready to send and receive data */
 } RNETA_State;
 
+
 static RNETA_State appState = RNETA_INITIAL;
 
+static uint8 bufIndex = 0u;
+static uint8 msgCount = 0u;
+static uint8 msg[RAPP_BUFFER_SIZE] = { 0u };
 
+RAPP_MSG_Type GetMsgType(uint8 msgCount)
+{
+	switch(msgCount){
+	case 0u :
+		return RAPP_MSG_TYPE_MSG_A;
+		break;
+	case 1u :
+		return RAPP_MSG_TYPE_MSG_B;
+		break;
+	case 2u :
+		return RAPP_MSG_TYPE_MSG_C;
+		break;
+	default:
+		return RAPP_MSG_TYPE_MSG_ERROR;
+		break;
+	}
+}
+
+static void PutMessage(uint8 currentByte, int i)
+{
+
+	if (0 == i && 0xEE == currentByte)
+  	  {
+  	    configFlag = 1u;
+
+  	  }
+  	else if (1 == i && 0xEE == currentByte && 1 == configFlag)
+  	  {
+  	    CLS1_printf("START \r\n");
+  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xEE;
+  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xEE;
+
+  	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_START, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+  	    configFlag = 0u;
+  	  }
+  	else if (1 == i && 0xFF == currentByte && 1 == configFlag)
+  	  {
+
+  	    CLS1_printf("STOP \r\n");
+
+  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xEE;
+  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xFF;
+
+  	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_STOP, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+  	    configFlag = 0u;
+  	  }
+  	else
+  	  {
+	    static uint8 msgCtr = 0u;
+	    if (0 == i)								// New message from Serial Port -> Reset
+	    {
+		    bufIndex = 0u;
+		    msgCount = 0u;
+	    }
+
+	    if ((PAYLOAD_SIZE-1) == bufIndex)		// Payload is full -> Send
+	    {
+		    RAPP_BUF_PAYLOAD_START(msg)[bufIndex] = currentByte;
+
+		    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, GetMsgType(msgCount), RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+
+    /*
+		    for(int j = 0; j < PAYLOAD_SIZE; j++)
+		    {
+			    CLS1_printf("%d - ",RAPP_BUF_PAYLOAD_START(msg)[j]);
+		    }
+		    CLS1_printf("\r\n\r\n");
+    */
+		    bufIndex = 0u;
+		    msgCount++;
+	    } else
+	    {
+		    RAPP_BUF_PAYLOAD_START(msg)[bufIndex] = currentByte;
+		    bufIndex++;
+	    }
+  	  }
+
+
+
+}
 static void RadioPowerUp(void) {
   /* need to ensure that we wait at least 100 ms (I use 150 ms here) after power-on of the transceiver */
   portTickType xTime;
@@ -87,17 +181,16 @@ static void RNetTask(void *pvParameters) {
 
 		  if (CDC1_GetCharsInRxBuf()!=0) {
 			int i = 0;
-			while(   i<sizeof(in_buffer)-1
-				  && CDC1_GetChar(&in_buffer[i])==ERR_OK
-				 )
+
+			while(i<sizeof(in_buffer) && CDC1_GetChar(&in_buffer[i])==ERR_OK)
 			{
-			  i++;
+			        //CLS1_printf("[%i] %i ",i , in_buffer[i]);
+				PutMessage(in_buffer[i], i);
+				i++;
 			}
+			//CLS1_printf("\r\n\r\n");
 			in_buffer[i] = '\0';
-			(void)CDC1_SendString((unsigned char*)"Got Message: ");
-			(void)CDC1_SendString(in_buffer);
-			RAPP_SendPayloadDataBlock(&in_buffer, sizeof(in_buffer), RAPP_MSG_TYPE_PING, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
-			(void)CDC1_SendString((unsigned char*)"Transmission: OK!\r\n");
+
 		  }
 		  FRTOS1_vTaskDelay(pdMS_TO_TICKS(10));
 	  }
