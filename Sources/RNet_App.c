@@ -67,34 +67,49 @@ RAPP_MSG_Type GetMsgType(uint8 msgCount)
 static void PutMessage(uint8 currentByte, int i)
 {
 
-	if (0 == i && 0xEE == currentByte)
+	if (0 == i && 0xAA == currentByte)
   	  {
   	    configFlag = 1u;
 
   	  }
-  	else if (1 == i && 0xEE == currentByte && 1 == configFlag)
+  	else if (1 == i && 0xAA == currentByte && 1 == configFlag)
   	  {
   	    CLS1_printf("START \r\n");
-  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xEE;
-  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xEE;
+  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
+  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xAA;
 
   	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_START, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
   	    configFlag = 0u;
   	  }
-  	else if (1 == i && 0xFF == currentByte && 1 == configFlag)
+  	else if (1 == i && 0xBB == currentByte && 1 == configFlag)
   	  {
 
   	    CLS1_printf("STOP \r\n");
 
-  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xEE;
-  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xFF;
+  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
+  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xBB;
 
   	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_STOP, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
   	    configFlag = 0u;
   	  }
+  	else if (1 == i && 0xCC == currentByte && 1 == configFlag)
+	  {
+
+	    CLS1_printf("READY \r\n");
+
+	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
+	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xCC;
+
+	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_READY, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+	    configFlag = 0u;
+	  }
   	else
   	  {
 	    static uint8 msgCtr = 0u;
+
+	    // Reset config Flag
+	    configFlag = 0u;
+
 	    if (0 == i)								// New message from Serial Port -> Reset
 	    {
 		    bufIndex = 0u;
