@@ -103,6 +103,17 @@ static void PutMessage(uint8 currentByte, int i)
 	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_READY, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
 	    configFlag = 0u;
 	  }
+  	else if (1 == i && 0xDD == currentByte && 1 == configFlag)
+	  {
+
+	    CLS1_printf("Next Trans \r\n");
+
+	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
+	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xDD;
+
+	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_TRANS, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+	    configFlag = 0u;
+	  }
   	else
   	  {
 	    static uint8 msgCtr = 0u;
