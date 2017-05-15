@@ -74,7 +74,6 @@ static void PutMessage(uint8 currentByte, int i)
   	  }
   	else if (1 == i && 0xAA == currentByte && 1 == configFlag)
   	  {
-  	    CLS1_printf("START \r\n");
   	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
   	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xAA;
 
@@ -83,8 +82,6 @@ static void PutMessage(uint8 currentByte, int i)
   	  }
   	else if (1 == i && 0xBB == currentByte && 1 == configFlag)
   	  {
-
-  	    CLS1_printf("STOP \r\n");
 
   	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
   	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xBB;
@@ -95,8 +92,6 @@ static void PutMessage(uint8 currentByte, int i)
   	else if (1 == i && 0xCC == currentByte && 1 == configFlag)
 	  {
 
-	    CLS1_printf("READY \r\n");
-
 	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
 	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xCC;
 
@@ -105,8 +100,6 @@ static void PutMessage(uint8 currentByte, int i)
 	  }
   	else if (1 == i && 0xDD == currentByte && 1 == configFlag)
 	  {
-
-	    CLS1_printf("Next Trans \r\n");
 
 	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
 	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xDD;
@@ -132,6 +125,8 @@ static void PutMessage(uint8 currentByte, int i)
 		    RAPP_BUF_PAYLOAD_START(msg)[bufIndex] = currentByte;
 
 		    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, GetMsgType(msgCount), RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+
+
 
     /*
 		    for(int j = 0; j < PAYLOAD_SIZE; j++)
@@ -208,9 +203,10 @@ static void RNetTask(void *pvParameters) {
 		  if (CDC1_GetCharsInRxBuf()!=0) {
 			int i = 0;
 
+
+
 			while(i<sizeof(in_buffer) && CDC1_GetChar(&in_buffer[i])==ERR_OK)
 			{
-			        //CLS1_printf("[%i] %i ",i , in_buffer[i]);
 				PutMessage(in_buffer[i], i);
 				i++;
 			}
