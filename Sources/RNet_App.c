@@ -24,8 +24,12 @@
 
 #include <STDDEF.h>
 
-#define PAYLOAD_SIZE 		(24)
+#define PAYLOAD_SIZE	(24)
 #define MSG_SIZE		(32)
+
+#define COMMAND_MSG_ID (0x7Fu)
+#define CONFIG_MSG_ID (0x7Eu)
+
 
 static uint8 cdc_buffer[USB1_DATA_BUFF_SIZE];
 static uint8 in_buffer[USB1_DATA_BUFF_SIZE];
@@ -46,97 +50,81 @@ static uint8 bufIndex = 0u;
 static uint8 msgCount = 0u;
 static uint8 msg[RAPP_BUFFER_SIZE] = { 0u };
 
-RAPP_MSG_Type GetMsgType(uint8 msgCount)
+RAPP_MSG_Type GetDataMsgType(uint8 msgCount)
 {
 	switch(msgCount){
 	case 0u :
-		return RAPP_MSG_TYPE_MSG_A;
+		return RAPP_MSG_TYPE_DATA_A;
 		break;
 	case 1u :
-		return RAPP_MSG_TYPE_MSG_B;
+		return RAPP_MSG_TYPE_DATA_B;
 		break;
 	case 2u :
-		return RAPP_MSG_TYPE_MSG_C;
+		return RAPP_MSG_TYPE_DATA_C;
 		break;
 	default:
-		return RAPP_MSG_TYPE_MSG_ERROR;
+		return RAPP_MSG_TYPE_ERROR;
+		break;
+	}
+}
+
+RAPP_MSG_Type GetCmdMsgType(uint8 cmdMsgId_)
+{
+	switch(cmdMsgId_){
+	case 0x00u :
+		return RAPP_MSG_TYPE_CMD_SW_RESET;
+		break;
+	case 0x11u :
+		return RAPP_MSG_TYPE_CMD_INIT;
+		break;
+	case 0x22u :
+		return RAPP_MSG_TYPE_CMD_STEADY;
+		break;
+	case 0x33u :
+		return RAPP_MSG_TYPE_CMD_GO;
+		break;
+	default:
+		return RAPP_MSG_TYPE_ERROR;
 		break;
 	}
 }
 
 static void PutMessage(uint8 currentByte, int i)
 {
+	static uint8 msgCtr = 0u;
 
-	if (0 == i && 0xAA == currentByte)
-  	  {
-  	    configFlag = 1u;
-
-  	  }
-  	else if (1 == i && 0xAA == currentByte && 1 == configFlag)
-  	  {
-  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
-  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xAA;
-
-  	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_START, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
-  	    configFlag = 0u;
-  	  }
-  	else if (1 == i && 0xBB == currentByte && 1 == configFlag)
-  	  {
-
-  	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
-  	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xBB;
-
-  	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_STOP, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
-  	    configFlag = 0u;
-  	  }
-  	else if (1 == i && 0xCC == currentByte && 1 == configFlag)
-	  {
-
-	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
-	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xCC;
-
-	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_READY, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
-	    configFlag = 0u;
-	  }
-  	else if (1 == i && 0xDD == currentByte && 1 == configFlag)
-	  {
-
-	    RAPP_BUF_PAYLOAD_START(msg)[0] = 0xAA;
-	    RAPP_BUF_PAYLOAD_START(msg)[1] = 0xDD;
-
-	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, RAPP_MSG_TYPE_CONFIG_TRANS, RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
-	    configFlag = 0u;
-	  }
+	if (0u == i )
+	{
+		bufIndex = 0u;
+		msgCount = 0u;
+		RAPP_BUF_PAYLOAD_START(msg)[0] = currentByte;
+		bufIndex++;
+  	}
+  	else if (1u == i && COMMAND_MSG_ID == currentByte)
+  	{
+  	    RAPP_BUF_PAYLOAD_START(msg)[1] = currentByte;
+  	    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, GetCmdMsgType(RAPP_BUF_PAYLOAD_START(msg)[0]), RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+  	}
+  	else if (1u == i && CONFIG_MSG_ID == currentByte)
+	{
+  		/* TODO */
+	}
   	else
   	  {
-	    static uint8 msgCtr = 0u;
-
-	    // Reset config Flag
-	    configFlag = 0u;
-
-	    if (0 == i)								// New message from Serial Port -> Reset
-	    {
-		    bufIndex = 0u;
-		    msgCount = 0u;
-	    }
-
 	    if ((PAYLOAD_SIZE-1) == bufIndex)		// Payload is full -> Send
 	    {
 		    RAPP_BUF_PAYLOAD_START(msg)[bufIndex] = currentByte;
-
-		    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, GetMsgType(msgCount), RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
-
-
-
-    /*
+		    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, GetDataMsgType(msgCount), RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
+		    bufIndex = 0u;
+		    msgCount++;
+#if 0
 		    for(int j = 0; j < PAYLOAD_SIZE; j++)
 		    {
 			    CLS1_printf("%d - ",RAPP_BUF_PAYLOAD_START(msg)[j]);
 		    }
 		    CLS1_printf("\r\n\r\n");
-    */
-		    bufIndex = 0u;
-		    msgCount++;
+#endif
+
 	    } else
 	    {
 		    RAPP_BUF_PAYLOAD_START(msg)[bufIndex] = currentByte;
