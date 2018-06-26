@@ -30,6 +30,11 @@
 #define COMMAND_MSG_ID (0x7Fu)
 #define CONFIG_MSG_ID (0x7Eu)
 
+#define TASK_TIMING_1MS     (1u)
+#define TASK_TIMING_2MS     (2u)
+#define TASK_TIMING_3MS     (3u)
+#define TASK_TIMING_5MS     (5u)
+#define TASK_TIMING_10MS    (10u)
 
 static uint8 cdc_buffer[USB1_DATA_BUFF_SIZE];
 static uint8 in_buffer[USB1_DATA_BUFF_SIZE];
@@ -171,28 +176,32 @@ static void Process(void) {
   } /* for */
 }
 
-static void RNetTask(void *pvParameters) {
-	 (void)pvParameters; /* not used */
-	  if (RAPP_SetThisNodeAddr(RNWK_ADDR_BROADCAST)!=ERR_OK) { /* set a default address */
-	    for(;;); /* "ERR: Failed setting node address" */
-	  }
+static void RNetTask(void *pvParameters)
+{
+	TickType_t LastWakeTime = 0u;
 
-	  appState = RNETA_INITIAL; /* initialize state machine state */
-	  for(;;) {
-		  Process(); /* process state machine */
-	      while(CDC1_App_Task(cdc_buffer, sizeof(cdc_buffer))==ERR_BUSOFF) {
-	        /* device not enumerated */
-	        LED1_Neg(); LED2_Off();
-	        WAIT1_Waitms(10);
-	      }
-	      LED1_Off(); LED2_Neg();
+	LastWakeTime = FRTOS1_xTaskGetTickCount();
+	(void)pvParameters; /* not used */
 
+	if ( RAPP_SetThisNodeAddr(RNWK_ADDR_BROADCAST) != ERR_OK ) /* set a default address */
+	{
+		for(;;); /* "ERR: Failed setting node address" */
+	}
 
-		  if (CDC1_GetCharsInRxBuf()!=0) {
-			int i = 0;
+	appState = RNETA_INITIAL; /* initialize state machine state */
 
-
-
+	for(;;)
+	{
+		Process(); /* process state machine */
+	    while(CDC1_App_Task(cdc_buffer, sizeof(cdc_buffer))==ERR_BUSOFF)  /* device not enumerated */
+	    {
+	    	LED1_On(); LED2_Off();
+	        WAIT1_Waitms(1);
+	    }
+	    LED1_Off(); LED2_Neg();
+		if (CDC1_GetCharsInRxBuf() != 0)
+		{
+			uint8_t i = 0;
 			while(i<sizeof(in_buffer) && CDC1_GetChar(&in_buffer[i])==ERR_OK)
 			{
 				PutMessage(in_buffer[i], i);
@@ -200,10 +209,9 @@ static void RNetTask(void *pvParameters) {
 			}
 			//CLS1_printf("\r\n\r\n");
 			in_buffer[i] = '\0';
-
-		  }
-		  FRTOS1_vTaskDelay(pdMS_TO_TICKS(10));
-	  }
+		}
+		FRTOS1_vTaskDelayUntil( &LastWakeTime, pdMS_TO_TICKS( TASK_TIMING_3MS ) );
+	}
 }
 
 
