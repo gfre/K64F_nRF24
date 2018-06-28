@@ -179,8 +179,6 @@ static void Process(void) {
 static void RNetTask(void *pvParameters)
 {
 	TickType_t LastWakeTime = 0u;
-
-	LastWakeTime = FRTOS1_xTaskGetTickCount();
 	(void)pvParameters; /* not used */
 
 	if ( RAPP_SetThisNodeAddr(RNWK_ADDR_BROADCAST) != ERR_OK ) /* set a default address */
@@ -192,6 +190,7 @@ static void RNetTask(void *pvParameters)
 
 	for(;;)
 	{
+		LastWakeTime = FRTOS1_xTaskGetTickCount();
 		Process(); /* process state machine */
 	    while(CDC1_App_Task(cdc_buffer, sizeof(cdc_buffer))==ERR_BUSOFF)  /* device not enumerated */
 	    {
@@ -210,7 +209,9 @@ static void RNetTask(void *pvParameters)
 			//CLS1_printf("\r\n\r\n");
 			in_buffer[i] = '\0';
 		}
-		FRTOS1_vTaskDelayUntil( &LastWakeTime, pdMS_TO_TICKS( TASK_TIMING_3MS ) );
+#define pdTICKS_TO_MS( xTimeInTicks ) ( ( TickType_t ) ( ( ( TickType_t ) ( xTimeInTicks ) / ( TickType_t ) configTICK_RATE_HZ ) * ( TickType_t ) 1000 ) )
+		CLS1_printf("\r\n%d\r\n", pdTICKS_TO_MS( FRTOS1_xTaskGetTickCount()-LastWakeTime ) );
+		FRTOS1_vTaskDelayUntil( &LastWakeTime, pdMS_TO_TICKS( TASK_TIMING_1MS ) );
 	}
 }
 
