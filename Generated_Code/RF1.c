@@ -7,7 +7,7 @@
 **     Version     : Component 01.101, Driver 01.00, CPU db: 3.00.000
 **     Repository  : My Components
 **     Compiler    : GNU C Compiler
-**     Date/Time   : 2018-06-25, 13:29, # CodeGen: 13
+**     Date/Time   : 2018-06-28, 08:54, # CodeGen: 2
 **     Abstract    :
 **         This component implements a driver for the Nordic Semiconductor nRF24L01 2.4 GHz transceiver.
 **     Settings    :
@@ -268,7 +268,11 @@ static void SPIWriteBuffer(uint8_t *bufOut, uint8_t bufSize)
 */
 void RF1_Deinit(void)
 {
-  /* nothing needed */
+#if RF1_CONFIG_USE_MUTEX
+  vQueueUnregisterQueue(RF1_Mutex);
+  vSemaphoreDelete(RF1_Mutex);
+  RF1_Mutex = NULL;
+#endif
 }
 
 /*
@@ -292,6 +296,10 @@ void RF1_Init(void)
   #else
   RF1_Mutex = xSemaphoreCreateRecursiveMutex();
   #endif
+  if (RF1_Mutex==NULL) { /* semaphore creation failed */
+    for(;;) {} /* error, not enough memory? */
+  }
+  vQueueAddToRegistry(RF1_Mutex, "RF1_Mutex");
 #endif
   RF1_CE_LOW();   /* CE high: do not send or receive data */
   RF1_CSN_HIGH(); /* CSN low: not sending commands to the device */
