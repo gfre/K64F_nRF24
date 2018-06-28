@@ -30,6 +30,13 @@
 #define COMMAND_MSG_ID (0x7Fu)
 #define CONFIG_MSG_ID (0x7Eu)
 
+#define TASK_TIMING_1MS     (1u)
+#define TASK_TIMING_2MS     (2u)
+#define TASK_TIMING_3MS     (3u)
+#define TASK_TIMING_5MS     (5u)
+#define TASK_TIMING_10MS    (10u)
+
+#define pdTICKS_TO_MS( xTimeInTicks ) ( ( TickType_t ) ( ( ( TickType_t ) ( xTimeInTicks ) / ( TickType_t ) configTICK_RATE_HZ ) * ( TickType_t ) 1000 ) )
 
 static uint8 cdc_buffer[USB1_DATA_BUFF_SIZE];
 static uint8 in_buffer[USB1_DATA_BUFF_SIZE];
@@ -89,7 +96,7 @@ RAPP_MSG_Type GetCmdMsgType(uint8 cmdMsgId_)
 	}
 }
 
-static void PutMessage(uint8 currentByte, int i)
+static inline void PutMessage(uint8 currentByte, int i)
 {
 	static uint8 msgCtr = 0u;
 
@@ -117,6 +124,7 @@ static void PutMessage(uint8 currentByte, int i)
 		    RAPP_PutPayload(msg, sizeof(msg), (uint8)PAYLOAD_SIZE, GetDataMsgType(msgCount), RNWK_ADDR_BROADCAST, RPHY_PACKET_FLAGS_NONE);
 		    bufIndex = 0u;
 		    msgCount++;
+
 #if 0
 		    for(int j = 0; j < PAYLOAD_SIZE; j++)
 		    {
@@ -146,6 +154,7 @@ static void RadioPowerUp(void) {
     FRTOS1_vTaskDelay(xTime);
   }
   (void)RADIO_PowerUp(); /* enable the transceiver */
+  RF1_SetDataRate(250);
 }
 
 static void Process(void) {
@@ -171,39 +180,43 @@ static void Process(void) {
   } /* for */
 }
 
-static void RNetTask(void *pvParameters) {
-	 (void)pvParameters; /* not used */
-	  if (RAPP_SetThisNodeAddr(RNWK_ADDR_BROADCAST)!=ERR_OK) { /* set a default address */
-	    for(;;); /* "ERR: Failed setting node address" */
-	  }
+static void RNetTask(void *pvParameters)
+{
+	TickType_t LastWakeTime, tmp = 0u;
+	(void)pvParameters; /* not used */
+	LastWakeTime = FRTOS1_xTaskGetTickCount();
+	if ( RAPP_SetThisNodeAddr(RNWK_ADDR_BROADCAST) != ERR_OK ) /* set a default address */
+	{
+		for(;;); /* "ERR: Failed setting node address" */
+	}
 
-	  appState = RNETA_INITIAL; /* initialize state machine state */
-	  for(;;) {
-		  Process(); /* process state machine */
-	      while(CDC1_App_Task(cdc_buffer, sizeof(cdc_buffer))==ERR_BUSOFF) {
-	        /* device not enumerated */
-	        LED1_Neg(); LED2_Off();
-	        WAIT1_Waitms(10);
-	      }
-	      LED1_Off(); LED2_Neg();
+	appState = RNETA_INITIAL; /* initialize state machine state */
 
+	for(;;)
+	{
 
-		  if (CDC1_GetCharsInRxBuf()!=0) {
-			int i = 0;
-
-
-
-			while(i<sizeof(in_buffer) && CDC1_GetChar(&in_buffer[i])==ERR_OK)
-			{
-				PutMessage(in_buffer[i], i);
-				i++;
-			}
-			//CLS1_printf("\r\n\r\n");
-			in_buffer[i] = '\0';
-
-		  }
-		  FRTOS1_vTaskDelay(pdMS_TO_TICKS(10));
-	  }
+	    Process(); /* process state machine */
+	    while(CDC1_App_Task(cdc_buffer, sizeof(cdc_buffer))==ERR_BUSOFF)  /* device not enumerated */
+	    {
+	    	LED1_On(); LED2_Off();
+	        WAIT1_Waitms(1);
+	    }
+	    LED1_Off(); LED2_Neg();
+	    if (CDC1_GetCharsInRxBuf() != 0)
+	    {
+		CLS1_printf("\r\n%d\r\n",  FRTOS1_xTaskGetTickCount()-tmp );
+		tmp = FRTOS1_xTaskGetTickCount();
+		uint8_t i = 0;
+		while(i<sizeof(in_buffer) && CDC1_GetChar(&in_buffer[i])==ERR_OK)
+		{
+			PutMessage(in_buffer[i], i);
+			i++;
+		}
+		//CLS1_printf("\r\n\r\n");
+		in_buffer[i] = '\0';
+	    }
+	    FRTOS1_vTaskDelayUntil( &LastWakeTime, pdMS_TO_TICKS( TASK_TIMING_10MS ) );
+	}
 }
 
 
@@ -214,9 +227,9 @@ void RNETA_Init(void) {
    if (xTaskCreate(
         RNetTask,  /* pointer to the task */
         "RNet", /* task name for kernel awareness debugging */
-        configMINIMAL_STACK_SIZE, /* task stack size */
+        configMINIMAL_STACK_SIZE+200, /* task stack size */
         (void*)NULL, /* optional task startup argument */
-        tskIDLE_PRIORITY,  /* initial priority */
+        tskIDLE_PRIORITY+1,  /* initial priority */
         (xTaskHandle*)NULL /* optional task handle to create */
       ) != pdPASS) {
     /*lint -e527 */

@@ -4,13 +4,13 @@
 /*##                                   */
 /*##     Filename  : ProcessorExpert.ld */
 /*##                                   */
-/*##     Project   : FRDM-K64F_nRF24   */
+/*##     Project   : K64F_nRF24        */
 /*##                                   */
 /*##     Processor : MK64FN1M0VLL12    */
 /*##                                   */
 /*##     Compiler  : GNU C Compiler    */
 /*##                                   */
-/*##     Date/Time : 2016-04-01, 20:17, # CodeGen: 2 */
+/*##     Date/Time : 2018-06-21, 13:30, # CodeGen: 3 */
 /*##                                   */
 /*##     Abstract  :                   */
 /*##                                   */
